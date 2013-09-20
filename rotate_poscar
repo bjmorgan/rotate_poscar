@@ -1,0 +1,123 @@
+#! /home/morgan/bin/ruby/bin/ruby
+
+require 'matrix'
+
+require 'optparse'
+
+options = {}
+
+executable_name = File.basename($PROGRAM_NAME)
+
+optparse = OptionParser.new do |opts|
+	opts.banner = "Usage: #{executable_name} [options] poscar"
+
+ # Define the options, and what they do
+ # Simple switch
+  options[:verbose] = false
+  opts.on( '-v', '--verbose', 'Output more information' ) do
+    options[:verbose] = true
+  end
+ 
+# Set a variable
+  options[:rotation_angle] = Math::PI/4
+  opts.on( '-r', '--rotation ANGLE', Float, 'Rotate by ANGLE degrees about the c axis' ) do |angle_in_degrees|
+    options[:rotation_angle] = Math::PI * angle_in_degrees / 180.0
+  end
+
+  options[:axis] = 'z'
+  opts.on( '-a', '--axis AXIS', [:x, :y, :z], 'Rotate about AXIS axis' ) do |axis|
+  	options[:axis] = axis.to_s
+  end
+ 
+# Perform an action immediately
+	opts.on( '-h', '--help', 'Display this screen' ) do
+		puts opts
+		exit
+	end
+
+end
+
+optparse.parse!
+rotation_angle = options[:rotation_angle]
+axis = options[:axis]
+
+class Poscar
+
+	def initialize( poscar_string )
+		@title = poscar_string[0]
+		@scaling = poscar_string[1].to_f
+		@lattice = Matrix[ *poscar_string[2..4].map{ |line| line.split.map{ |s| s.to_f } } ]
+		@labels = poscar_string[5].split
+		@numbers = poscar_string[6].split.map{ |s| s.to_i }
+		@coordinates = Matrix[ *poscar_string[8..-1].map{ |line| line.strip.split.map{ |s| s.to_f } }.reject{ |line| line.empty? } ]
+	end
+
+	def rotate!( rotation_matrix )
+		@lattice = Matrix[ *rotation_matrix ] * @lattice
+		return self
+	end
+
+	def output
+		string = []
+		string << @title 
+		string << @scaling.to_s 
+		string << @lattice.to_a.map{ |line| line.map{ |e| e.to_s }.join(' ') }.join("\n")
+		string << @labels.join(' ')
+		string << @numbers.map{ |n| n.to_s }.join(' ')
+		string << "Direct"
+		string << @coordinates.to_a.map{ |line| line.map{ |e| e.to_s }.join(' ') }.join("\n")
+		puts string.join("\n")
+	end
+
+end
+
+class Rotation_Matrix < Array
+
+	def initialize( alpha, beta, gamma )
+		unit_matrix = Matrix[ [ 1.0, 0.0, 0.0 ], [ 0.0, 1.0, 0.0 ], [ 0.0, 0.0, 1.0 ] ]
+		r_z = Matrix[ [ Math.cos( alpha ), -Math.sin( alpha ), 0.0 ], [ Math.sin( alpha ), Math.cos( alpha ), 0.0 ], [ 0.0, 0.0, 1.0 ] ]
+		r_y = Matrix[ [ Math.cos( beta ), 0.0, Math.sin( beta ) ], [ 0.0, 1.0, 0.0 ], [ -Math.sin( beta ), 0.0, Math.cos( beta ) ] ]
+		r_x = Matrix[ [ 1.0, 0.0, 0.0 ], [ 0.0, Math.cos( gamma ), -Math.sin( gamma ) ], [ 0.0, Math.sin( gamma ), Math.cos( gamma ) ] ]
+		full_matrix = r_x * ( r_y * ( r_z * unit_matrix ) )
+		super( full_matrix.to_a )
+	end
+
+	def output
+		puts
+		puts self.map{ |line| line.join(' ') }
+		puts
+	end
+
+	def to_m
+		return Matrix[ *self ]
+	end
+
+end
+
+def read_poscar( filename )
+	abort( "#{filename} not found" ) unless File.exist?( filename )
+	poscar_string = File.new( filename, 'r' ).readlines.map{ |line| line.strip }.reject{ |line| line.empty? }
+	return Poscar.new( poscar_string )
+end
+
+filename = ARGV[0] ||= 'POSCAR'
+poscar = read_poscar( filename )
+
+case axis
+when 'z'
+	rotation_matrix = Rotation_Matrix.new( rotation_angle, 0.0, 0.0 ) # rotate around around z
+when 'y'
+	rotation_matrix = Rotation_Matrix.new( 0.0, rotation_angle, 0.0 ) # rotate around around y
+when 'x'
+	rotation_matrix = Rotation_Matrix.new( 0.0, 0.0, rotation_angle ) # rotate around around x
+end
+# rotation_matrix_2 = Rotation_Matrix.new( 0.0, 0.0, Math::PI/2.0 ) # rotate 90° around a
+# full_rotation = ( rotation_matrix_1.to_m * rotation_matrix_2.to_m * rotation_matrix_1.to_m ).to_a
+poscar.rotate!( rotation_matrix ).output
+puts
+
+
+
+
+
+
