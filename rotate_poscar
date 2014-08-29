@@ -1,4 +1,4 @@
-#! /home/morgan/bin/ruby/bin/ruby
+#! /home/morgan/bin/ruby/bin/ruby -w
 
 require 'matrix'
 
@@ -28,6 +28,11 @@ optparse = OptionParser.new do |opts|
   opts.on( '-a', '--axis AXIS', [:x, :y, :z], 'Rotate about AXIS axis' ) do |axis|
   	options[:axis] = axis.to_s
   end
+
+  options[:orientation] = nil
+  opts.on( '-o', '--orientation-matrix FILE', 'Read an orientation matrix in file FILE' ) do |orientation_file|
+    options[:orientation] = orientation_file
+  end
  
 # Perform an action immediately
 	opts.on( '-h', '--help', 'Display this screen' ) do
@@ -40,6 +45,12 @@ end
 optparse.parse!
 rotation_angle = options[:rotation_angle]
 axis = options[:axis]
+orientation_file = options[:orientation]
+
+def read_orientation_matrix_from_file( filename )
+  data = File.new( filename, 'r' ).readlines[0..3].map{ |line| line.split.map{ |s| s.to_f } }
+  return data
+end
 
 class Poscar
 
@@ -103,21 +114,20 @@ end
 filename = ARGV[0] ||= 'POSCAR'
 poscar = read_poscar( filename )
 
-case axis
-when 'z'
-	rotation_matrix = Rotation_Matrix.new( rotation_angle, 0.0, 0.0 ) # rotate around around z
-when 'y'
-	rotation_matrix = Rotation_Matrix.new( 0.0, rotation_angle, 0.0 ) # rotate around around y
-when 'x'
-	rotation_matrix = Rotation_Matrix.new( 0.0, 0.0, rotation_angle ) # rotate around around x
+if orientation_file.nil?
+  case axis
+  when 'z'
+  	rotation_matrix = Rotation_Matrix.new( rotation_angle, 0.0, 0.0 ) # rotate around around z
+  when 'y'
+  	rotation_matrix = Rotation_Matrix.new( 0.0, rotation_angle, 0.0 ) # rotate around around y
+  when 'x'
+  	rotation_matrix = Rotation_Matrix.new( 0.0, 0.0, rotation_angle ) # rotate around around x
+  end
+else
+  rotation_matrix = read_orientation_matrix_from_file( orientation_file )
 end
 # rotation_matrix_2 = Rotation_Matrix.new( 0.0, 0.0, Math::PI/2.0 ) # rotate 90° around a
 # full_rotation = ( rotation_matrix_1.to_m * rotation_matrix_2.to_m * rotation_matrix_1.to_m ).to_a
 poscar.rotate!( rotation_matrix ).output
 puts
-
-
-
-
-
 
