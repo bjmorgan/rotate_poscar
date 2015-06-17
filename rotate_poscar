@@ -1,4 +1,4 @@
-#! /home/morgan/bin/ruby/bin/ruby -w
+#! /usr/bin/env ruby
 
 require 'matrix'
 
